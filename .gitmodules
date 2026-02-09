@@ -10,3 +10,6 @@
 [submodule "ros2_ws/src/px4_msgs"]
 	path = ros2_ws/src/px4_msgs
 	url = git@github.com:Darkjrcy/px4_msgs.git
+[submodule "apriltag-imgs"]
+	path = apriltag-imgs
+	url = git@github.com:AprilRobotics/apriltag-imgs.git
