@@ -149,7 +149,7 @@ def generate_launch_description():
         # PX4 directory:
         DeclareLaunchArgument(
             'px4_dir',
-            default_value=os.path.expanduser('/home/adcl/RobotXProject/PX4-Autopilot'),
+            default_value=os.path.expanduser('/home/adcl/Repository-RobotX/PX4-Autopilot'),
             description='Path to PX4-Autopilot folder (where you run make)'
         ),
         # PX4 model:

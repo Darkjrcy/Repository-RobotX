@@ -20,6 +20,7 @@ def launch(context, *args, **kwargs):
     position_apriltag = LaunchConfiguration('pos_apriltag').perform(context)
     apriltag_name = LaunchConfiguration('apriltag_name').perform(context)
 
+
     # Define a vector contianing all laucnh process:
     launch_process = []
     # Node to add tHE APRILtAGS:
@@ -61,6 +62,30 @@ def launch(context, *args, **kwargs):
         )
     )
     launch_process.append(start_launch)
+
+
+    # Launch the AprilTag recognition system:
+    apriltag_detect = Node(
+        package='px4_exec',
+        executable='apriltag_detector',
+        output = 'screen',
+    )
+    launch_process.append(apriltag_detect)
+
+
+    # Open RVIZ2 witht he configuration:
+    pkg_share = get_package_share_directory('robotx_bringup')
+    rviz_config_path = os.path.join(pkg_share, 'rviz', 'apriltag_detection.rviz')
+    # RViz Node
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config_path],
+        output='screen'
+    )
+    launch_process.append(rviz_node)
+
 
     # Return the launch processes:
     return launch_process

@@ -134,7 +134,7 @@ class UavLandingNode : public rclcpp::Node {
 
         // Landing tunnables:
         // Takeoff altitde
-        double takeoff_alt_m_{5.0};
+        double takeoff_alt_m_{7.0};
         // Follow USV horziontal distance:
         double follow_distance_m_{2.0};
         // FOllow altitude:
@@ -398,14 +398,6 @@ class UavLandingNode : public rclcpp::Node {
                     current_sp_x_ = static_cast<float>(north_m); 
                     current_sp_y_ = static_cast<float>(east_m);
                     current_sp_z_ = -static_cast<float>(takeoff_alt_m_);
-                    // NOTE: This segment is unused for the moment. 
-
-
-
-                    // Temoprrarly POSITION BASED:
-                    current_sp_x_ = static_cast<float>(usv_pose_enu->pose.position.y) - uav_init_y_;
-                    current_sp_y_ = static_cast<float>(usv_pose_enu->pose.position.x) - uav_init_x_;
-                    current_sp_z_ = -static_cast<float>(takeoff_alt_m_);
                     // If it hovers for 3 secods change to the phase where it hovers at a lower altitude
                     if (++usv_hover_ticks_ > 50) {
                         phase_ = Phase::TRACK_USV_HIGH;
@@ -416,9 +408,12 @@ class UavLandingNode : public rclcpp::Node {
 
                 // Hover at a hogher altitude fromt eh USV:
                 case Phase::TRACK_USV_HIGH: {
-                    // Save it as the tracking position:
-                    current_sp_x_ = static_cast<float>(usv_pose_enu->pose.position.y) - uav_init_y_;
-                    current_sp_y_ = static_cast<float>(usv_pose_enu->pose.position.x) - uav_init_x_;
+                    // GPS BASED:
+                    double north_m = 0.0, east_m = 0.0;
+                    latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
+                    // SEnd the USV position with the Takeoff altitude:
+                    current_sp_x_ = static_cast<float>(north_m); 
+                    current_sp_y_ = static_cast<float>(east_m);
                     current_sp_z_ = -hover_high_m_;
 
                     // If it hovers for 3 secods change to the phase where it hovers at a lower altitude
@@ -431,9 +426,12 @@ class UavLandingNode : public rclcpp::Node {
                 
                 // Phase where it hovers at a lower altitude:
                 case Phase::DESCEND_LOW: {
-                    // Get the USV position respect from the UAV:
-                    current_sp_x_ = static_cast<float>(usv_pose_enu->pose.position.y) - uav_init_y_;
-                    current_sp_y_ = static_cast<float>(usv_pose_enu->pose.position.x) - uav_init_x_;
+                    // GPS BASED:
+                    double north_m = 0.0, east_m = 0.0;
+                    latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
+                    // SEnd the USV position with the Takeoff altitude:
+                    current_sp_x_ = static_cast<float>(north_m); 
+                    current_sp_y_ = static_cast<float>(east_m);
                     current_sp_z_ = -hover_low_m_;
 
                     // If it hovers at that lower altitude for 3 seconds start landing:
