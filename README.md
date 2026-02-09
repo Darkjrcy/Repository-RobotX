@@ -107,6 +107,8 @@ This file extends the main launch by adding visual markers to the USV platform f
 ``` bash
 ros2 launch robotx_bringup usv_px4_apriltags.launch.py
 ```
+> [!CAUTION] To make the launch files to run please change the px4_dir argument in the launch files to the location of your actual PX4-Autopilot repository.
+
 
 ---
 ## Execution
