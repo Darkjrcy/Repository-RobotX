@@ -7,3 +7,6 @@
 [submodule "ros2_ws/src/vrx"]
 	path = ros2_ws/src/vrx
 	url = git@github.com:Darkjrcy/vrx.git
+[submodule "ros2_ws/src/px4_msgs"]
+	path = ros2_ws/src/px4_msgs
+	url = git@github.com:Darkjrcy/px4_msgs.git
