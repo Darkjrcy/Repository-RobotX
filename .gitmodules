@@ -1,0 +1,9 @@
+[submodule "PX4-Autopilot"]
+	path = PX4-Autopilot
+	url = git@github.com:Darkjrcy/PX4-Autopilot.git
+[submodule "gazebo_models"]
+	path = gazebo_models
+	url = git@github.com:Darkjrcy/gazebo_models.git
+[submodule "ros2_ws/src/vrx"]
+	path = ros2_ws/src/vrx
+	url = git@github.com:Darkjrcy/vrx.git
