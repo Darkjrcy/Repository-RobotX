@@ -96,9 +96,15 @@ install(TARGETS mavsdk_follow_agent
 )
 
 
-
+# Add the ROS2 messages:
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 # Build the landing strategy that uses PX4:
 add_executable(landing_strategy src/landing_strategy.cpp)
+# Target it with the linked libarires:
+target_link_libraries(landing_strategy
+  ${cpp_typesupport_target}
+)
 # Add the dependencies:
 ament_target_dependencies(landing_strategy
   "rclcpp" 

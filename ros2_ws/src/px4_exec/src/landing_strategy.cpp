@@ -19,7 +19,11 @@
 #include "px4_msgs/msg/trajectory_setpoint.hpp"
 #include "px4_msgs/msg/vehicle_command.hpp"
 #include "px4_msgs/msg/vehicle_status.hpp"
+#include "px4_msgs/msg/vehicle_attitude.hpp"
 #include "px4_msgs/msg/vehicle_local_position.hpp"
+
+// Include your custom messages:
+#include "px4_exec/msg/april_tag_detection.hpp"
 
 
 
@@ -36,6 +40,12 @@ class UavLandingNode : public rclcpp::Node {
             // Declare topic paramters:
             usv_gps_topic_ = this->declare_parameter<std::string>("usv_gps_topic", "/wamv/sensors/gps/gps/fix");
             uav_gps_topic_ = this->declare_parameter<std::string>("uav_gps_topic", "/x500_mono_cam/sensors/gps/gps/fix");
+            uav_apriltag_info_topic_ = this->declare_parameter<std::string>("uav_apriltag_info_topic", "uav/apriltag_detect");
+
+            // Declare the camera position offset:
+            cam_x_offset_ = this->declare_parameter<double>("cam_x_offset", 0.10);
+            cam_y_offset_ = this->declare_parameter<double>("cam_y_offset", 0.0);
+            cam_z_offset_ = this->declare_parameter<double>("cam_z_offset", 0.0);
 
             // Temperarlly define initial position of the UAV:
             uav_pos_init_  = this->declare_parameter<std::string>("uav_init_pos", "-540,140,1.76,0,0,0");
@@ -48,6 +58,10 @@ class UavLandingNode : public rclcpp::Node {
             // UAV:
             uav_gps_sub_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(uav_gps_topic_, 10,
                             [this](const sensor_msgs::msg::NavSatFix &msg) {std::lock_guard<std::mutex> lock(mutex_);last_uav_gps_ = msg;});
+
+            // Subscribe to the AprilTag Detection infromation:
+            apriltag_info_sub_ = this->create_subscription<px4_exec::msg::AprilTagDetection>(uav_apriltag_info_topic_, 10,
+                            [this](const px4_exec::msg::AprilTagDetection &msg) {std::lock_guard<std::mutex> lock(mutex_);last_apriltag_info_ = msg;});
 
             // Temporarlly position of the wamv:
             usv_pose_topic_ = this->declare_parameter<std::string>("wamv_pose_topic", "/wamv/pose");
@@ -88,6 +102,8 @@ class UavLandingNode : public rclcpp::Node {
         std::string uav_gps_topic_;
         // USV intiial poisiton to use the wamv pose topic for hte moment:
         std::string uav_pos_init_;
+        // Topic that has the APiltag inforamtion:
+        std::string uav_apriltag_info_topic_;
         // UAV local position:
         std::optional<px4_msgs::msg::VehicleLocalPosition> local_pos_;
         // UAV status:
@@ -98,6 +114,11 @@ class UavLandingNode : public rclcpp::Node {
         float uav_init_y_{0.0f};
         float uav_init_z_{0.0f};
 
+        // Camera offset from the UAV:
+        float cam_x_offset_;
+        float cam_y_offset_;
+        float cam_z_offset_;
+
         // Temporary position subscriber from the USV position:
         std::string usv_pose_topic_;
         rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr usv_pose_sub_;
@@ -107,10 +128,13 @@ class UavLandingNode : public rclcpp::Node {
         std::mutex mutex_;
         std::optional<sensor_msgs::msg::NavSatFix> last_usv_gps_;
         std::optional<sensor_msgs::msg::NavSatFix> last_uav_gps_;
+        std::optional<px4_exec::msg::AprilTagDetection> last_apriltag_info_;
 
         // Supscripions of the GPS signals:
         rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr usv_gps_sub_;
         rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr uav_gps_sub_;
+        // Sucription to the AprilTag detection info:
+        rclcpp::Subscription<px4_exec::msg::AprilTagDetection>::SharedPtr apriltag_info_sub_;
         // Subscriptions to the vehicle status adn the position:
         rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr vehicle_status_sub_;
         rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr local_pos_sub_;    
@@ -152,23 +176,23 @@ class UavLandingNode : public rclcpp::Node {
         // Current yaw angle of the USV
         float current_sp_yaw_{0.f};
         // Altitude where its going to start to hover:
-        float hover_high_m_{2.0f};
+        float hover_high_m_{0.75f};
         // Altitude where its going to end hovering before landing:
-        float hover_low_m_{1.5f};
+        float hover_low_m_{0.5f};
 
         // NUmber of iterations the timer hovers:
         // Maxmium altitude:
         int hover_ticks_{0};
-        // Minimum altitude
         int low_hover_ticks_{0};
-        // Iter to maintain the UAV above the USV:
-        int usv_hover_ticks_{0};
 
         // Define Initial condiitons for the UAV GPS:
         bool origin_set_{false};
         double origin_lat_deg_{0.0};
         double origin_lon_deg_{0.0};
-        double origin_cos_lat_{1.0}; 
+        double origin_cos_lat_{1.0};
+        
+        // Following increase percentage ue to segmentate the following commands:
+        float alpha_{0.1f};
 
 
         // Define the private functions that are going to be used during the landing strategy:
@@ -243,6 +267,22 @@ class UavLandingNode : public rclcpp::Node {
 
 
 
+        // Function to detect if the UAV has reached a target:
+        bool has_reached_target(double target_x, double target_y, double target_z, double tolerance_m) {
+            // Don't do it if there is no stream of the UAV position:
+            if (!local_pos_) return false;
+
+            // Cacualt the sitance between teh UAV and the targte 
+            double dx = local_pos_->x - target_x;
+            double dy = local_pos_->y - target_y;
+            double dz = local_pos_->z - target_z;
+            double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+            // Return truw if the distance is lower than a threshold:
+            return dist < tolerance_m;
+        }
+
+
+
         // Function used in the ROS2 timer that contains the landing logic:
         void thick(){
             // If we are in OFFBOARD phases, continuously stream these (PX4 will drop out if stream stops).
@@ -268,6 +308,10 @@ class UavLandingNode : public rclcpp::Node {
                 if (last_uav_gps_) uav_gps = *last_uav_gps_;
                 if (last_usv_pose_enu_) usv_pose_enu = *last_usv_pose_enu_;
             }
+
+            // Detect the east and north position of the USV from the UAV:
+            double north_m = 0.0, east_m = 0.0;
+            latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
 
             // After the message from gps are working change to  takeoff:
             switch(phase_){
@@ -390,48 +434,38 @@ class UavLandingNode : public rclcpp::Node {
                 }
 
                 //Go to the USV in the same climb altitue:
-                case  Phase::GOTOUSV: {
-                    // GPS BASED:
-                    double north_m = 0.0, east_m = 0.0;
-                    latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
-                    // SEnd the USV position with the Takeoff altitude:
-                    current_sp_x_ = static_cast<float>(north_m); 
-                    current_sp_y_ = static_cast<float>(east_m);
+                case  Phase::GOTOUSV: {                    
+                    // Update the reference position 
+                    current_sp_x_ = current_sp_x_ + (alpha_ * (north_m - current_sp_x_));
+                    current_sp_y_ = current_sp_y_ + (alpha_ * (east_m - current_sp_y_));
                     current_sp_z_ = -static_cast<float>(takeoff_alt_m_);
-                    // If it hovers for 3 secods change to the phase where it hovers at a lower altitude
-                    if (++usv_hover_ticks_ > 50) {
+
+                    // Define if it ghet to the goal:
+                    if (has_reached_target(north_m, east_m, -static_cast<float>(takeoff_alt_m_), 0.5)) {
                         phase_ = Phase::TRACK_USV_HIGH;
-                        usv_hover_ticks_ = 0;
                     }
                     return;
                 }
 
                 // Hover at a hogher altitude fromt eh USV:
                 case Phase::TRACK_USV_HIGH: {
-                    // GPS BASED:
-                    double north_m = 0.0, east_m = 0.0;
-                    latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
                     // SEnd the USV position with the Takeoff altitude:
-                    current_sp_x_ = static_cast<float>(north_m); 
-                    current_sp_y_ = static_cast<float>(east_m);
-                    current_sp_z_ = -hover_high_m_;
+                    current_sp_x_ = current_sp_x_ + (alpha_ * (north_m - current_sp_x_));
+                    current_sp_y_ = current_sp_y_ + (alpha_ * (east_m - current_sp_y_));
+                    current_sp_z_ = -hover_high_m_-usv_gps->altitude;
 
                     // If it hovers for 3 secods change to the phase where it hovers at a lower altitude
-                    if (++hover_ticks_ > 1000) {
+                    if (last_apriltag_info_->apriltag_detected) {
                         phase_ = Phase::DESCEND_LOW;
-                        low_hover_ticks_ = 0;
                     }
                     return;
                 }
                 
                 // Phase where it hovers at a lower altitude:
                 case Phase::DESCEND_LOW: {
-                    // GPS BASED:
-                    double north_m = 0.0, east_m = 0.0;
-                    latlon_to_northeats(usv_gps->latitude, usv_gps->longitude, origin_lat_deg_, origin_lon_deg_, origin_cos_lat_, north_m, east_m);
                     // SEnd the USV position with the Takeoff altitude:
-                    current_sp_x_ = static_cast<float>(north_m); 
-                    current_sp_y_ = static_cast<float>(east_m);
+                    current_sp_x_ = current_sp_x_ + (alpha_ * (north_m - current_sp_x_));
+                    current_sp_y_ = current_sp_y_ + (alpha_ * (east_m - current_sp_y_));
                     current_sp_z_ = -hover_low_m_;
 
                     // If it hovers at that lower altitude for 3 seconds start landing:
