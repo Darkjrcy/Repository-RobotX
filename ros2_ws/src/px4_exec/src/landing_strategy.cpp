@@ -7,6 +7,8 @@
 #include <optional>
 #include <thread>
 #include <atomic>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 
 // Include ROS2 Libraries and messages:
 #include "rclcpp/rclcpp.hpp"
@@ -42,10 +44,27 @@ class UavLandingNode : public rclcpp::Node {
             uav_gps_topic_ = this->declare_parameter<std::string>("uav_gps_topic", "/x500_mono_cam/sensors/gps/gps/fix");
             uav_apriltag_info_topic_ = this->declare_parameter<std::string>("uav_apriltag_info_topic", "uav/apriltag_detect");
 
-            // Declare the camera position offset:
-            cam_x_offset_ = this->declare_parameter<double>("cam_x_offset", 0.10);
+            // Declare the camera position offset (In teh NED referece frame of the UAV):
+            cam_x_offset_ = this->declare_parameter<double>("cam_x_offset", 0.0);
             cam_y_offset_ = this->declare_parameter<double>("cam_y_offset", 0.0);
-            cam_z_offset_ = this->declare_parameter<double>("cam_z_offset", 0.0);
+            cam_z_offset_ = -1*this->declare_parameter<double>("cam_z_offset", -0.1);
+            // Decalre teh roation of the camera from teh UAV NED refernce frame the declared parameters should be from the mono_cam
+            // x500 model.sdf
+            double cam_roll_gz  = this->declare_parameter<double>("cam_roll", 0.0);
+            double cam_pitch_gz = this->declare_parameter<double>("cam_pitch", -1.5707);
+            double cam_yaw_gz   = this->declare_parameter<double>("cam_yaw", 1.5707);
+
+            // Get the real rotation in terms of teh UAV NED referene frame:
+            tf2::Quaternion q_nwu;
+            q_nwu.setRPY(cam_roll_gz, cam_pitch_gz, cam_yaw_gz);
+            // Define the rotation:
+            tf2::Quaternion q_rot_nwu_to_ned;
+            q_rot_nwu_to_ned.setRPY(M_PI, 0, 0);
+            // Get teh final rotation in teh NED frmae:
+            tf2::Quaternion q_ned = q_rot_nwu_to_ned * q_nwu;
+            // Obtain the rotation angles from teh global frame:
+            double cam_roll_, cam_pitch_, cam_yaw_;
+            rot_matrix_ned.getRPY(cam_roll_, cam_pitch_, cam_yaw_);
 
             // Temperarlly define initial position of the UAV:
             uav_pos_init_  = this->declare_parameter<std::string>("uav_init_pos", "-540,140,1.76,0,0,0");
@@ -115,9 +134,14 @@ class UavLandingNode : public rclcpp::Node {
         float uav_init_z_{0.0f};
 
         // Camera offset from the UAV:
+        // Posiiton
         float cam_x_offset_;
         float cam_y_offset_;
         float cam_z_offset_;
+        // Orientation:
+        float cam_roll_;
+        float cam_pitch_;
+        float cam_yaw_;
 
         // Temporary position subscriber from the USV position:
         std::string usv_pose_topic_;
