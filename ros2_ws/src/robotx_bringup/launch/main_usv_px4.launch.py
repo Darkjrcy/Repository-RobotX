@@ -123,11 +123,14 @@ def launch(context, *args, **kwargs):
             f"/world/{world_name}/model/{px4_model}_0/link/base_link/sensor/navsat_sensor/navsat@sensor_msgs/msg/NavSatFix[gz.msgs.NavSat",
             # UAV camera IMages:
             f"/camera@sensor_msgs/msg/Image[gz.msgs.Image",
+            # UAV camera info:
+            f"/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"
         ],
         remappings=[
             # Rename ROS side topics to what you want
             (f"/world/{world_name}/model/{px4_model}_0/link/base_link/sensor/navsat_sensor/navsat", f"/{px4_model}/sensors/gps/gps/fix"),
             (f"/camera", f"/uav/camera"),
+            (f"/camera_info", f"/uav/camera_info")
         ],
     )
     launch_process.append(uav_bridges)

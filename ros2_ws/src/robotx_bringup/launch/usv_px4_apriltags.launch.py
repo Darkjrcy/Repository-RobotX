@@ -146,7 +146,7 @@ def generate_launch_description():
         # Define the position of the AprilTags:
         DeclareLaunchArgument(
             'pos_apriltag',
-            default_value='0.28, 0, 1.76',
+            default_value='0.025 , 0.2, 1.76',
             description='Position ofhte AprilTags if there is more than one the positions can be subdivided by ;'
         ),
         # Name of the apriltag dae:

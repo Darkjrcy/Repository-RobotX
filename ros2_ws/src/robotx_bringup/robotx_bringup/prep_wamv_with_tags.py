@@ -32,7 +32,7 @@ APRILTAG_BLOCK_TEMPLATE = """
   <joint name="${{namespace}}/aptag_joint{idx}" type="fixed">
       <parent link="${{namespace}}/base_link"/>
       <child link="${{namespace}}/aptag{idx}"/>
-      <origin rpy="0 1.5707963 3.1415926" xyz="{x} {y} {z}"/>
+      <origin xyz="{x} {y} {z}" rpy="0 1.5707963 -1.5707963"/>
   </joint>
 """
 

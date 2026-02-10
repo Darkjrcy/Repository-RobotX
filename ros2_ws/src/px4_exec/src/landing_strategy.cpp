@@ -134,7 +134,7 @@ class UavLandingNode : public rclcpp::Node {
 
         // Landing tunnables:
         // Takeoff altitde
-        double takeoff_alt_m_{7.0};
+        double takeoff_alt_m_{5.0};
         // Follow USV horziontal distance:
         double follow_distance_m_{2.0};
         // FOllow altitude:
@@ -154,7 +154,7 @@ class UavLandingNode : public rclcpp::Node {
         // Altitude where its going to start to hover:
         float hover_high_m_{2.0f};
         // Altitude where its going to end hovering before landing:
-        float hover_low_m_{0.4f};
+        float hover_low_m_{1.5f};
 
         // NUmber of iterations the timer hovers:
         // Maxmium altitude:

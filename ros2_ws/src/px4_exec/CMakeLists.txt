@@ -10,12 +10,14 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(gz-transport12 REQUIRED)
 find_package(gz-msgs9 REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(Threads REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -28,6 +30,13 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+
+# Build the messages:
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/AprilTagDetection.msg"  
+  DEPENDENCIES "std_msgs" "geometry_msgs"
+)
 
 
 # Build the ROS2 model pose publisher:
@@ -112,12 +121,16 @@ include_directories(
   ${APRILTAG_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
 )
+# Add the ROS2 messages:
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 # Build the AprilTag detector Node:
 add_executable(apriltag_detector src/apriltag_detector.cpp)
 # Target it with the linked libarires:
 target_link_libraries(apriltag_detector
   ${APRILTAG_LIBRARY}
   ${OpenCV_LIBRARIES}
+  ${cpp_typesupport_target}
 )
 # Add the dependencies:
 ament_target_dependencies(apriltag_detector
