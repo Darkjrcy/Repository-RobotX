@@ -1,15 +1,20 @@
 [submodule "PX4-Autopilot"]
 	path = PX4-Autopilot
 	url = git@github.com:Darkjrcy/PX4-Autopilot.git
+	branch = my-px4-v1.15.4
 [submodule "gazebo_models"]
 	path = gazebo_models
 	url = git@github.com:Darkjrcy/gazebo_models.git
+	branch = master
 [submodule "ros2_ws/src/vrx"]
 	path = ros2_ws/src/vrx
 	url = git@github.com:Darkjrcy/vrx.git
+	branch = humble
 [submodule "ros2_ws/src/px4_msgs"]
 	path = ros2_ws/src/px4_msgs
 	url = git@github.com:Darkjrcy/px4_msgs.git
+	branch = release/1.15
 [submodule "apriltag-imgs"]
 	path = apriltag-imgs
 	url = git@github.com:AprilRobotics/apriltag-imgs.git
+	branch = master
