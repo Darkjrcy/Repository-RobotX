@@ -20,6 +20,7 @@
   <!-- Add the dependencies for hte landing strategy-->
   <depend>sensor_msgs</depend>
   <depend>px4_msgs</depend>
+  <depend>tf2</depend>
 
   <!-- Add the depenedncies for the ApriolTag detector-->
   <depend>cv_bridge</depend>

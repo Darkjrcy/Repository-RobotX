@@ -62,6 +62,7 @@ class UavLandingNode : public rclcpp::Node {
             q_rot_nwu_to_ned.setRPY(M_PI, 0, 0);
             // Get teh final rotation in teh NED frmae:
             tf2::Quaternion q_ned = q_rot_nwu_to_ned * q_nwu;
+            tf2::Matrix3x3 rot_matrix_ned(q_ned);
             // Obtain the rotation angles from teh global frame:
             double cam_roll_, cam_pitch_, cam_yaw_;
             rot_matrix_ned.getRPY(cam_roll_, cam_pitch_, cam_yaw_);

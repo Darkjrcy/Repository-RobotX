@@ -17,6 +17,7 @@ find_package(px4_msgs REQUIRED)
 find_package(Threads REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(tf2 REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 if(BUILD_TESTING)
@@ -107,6 +108,7 @@ target_link_libraries(landing_strategy
 )
 # Add the dependencies:
 ament_target_dependencies(landing_strategy
+  "tf2"
   "rclcpp" 
   "geometry_msgs"
   "sensor_msgs"
