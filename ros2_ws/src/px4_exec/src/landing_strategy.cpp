@@ -42,12 +42,12 @@ class UavLandingNode : public rclcpp::Node {
             // Declare topic paramters:
             usv_gps_topic_ = this->declare_parameter<std::string>("usv_gps_topic", "/wamv/sensors/gps/gps/fix");
             uav_gps_topic_ = this->declare_parameter<std::string>("uav_gps_topic", "/x500_mono_cam/sensors/gps/gps/fix");
-            uav_apriltag_info_topic_ = this->declare_parameter<std::string>("uav_apriltag_info_topic", "uav/apriltag_detect");
+            uav_apriltag_info_topic_ = this->declare_parameter<std::string>("uav_apriltag_info_topic", "uav/apriltag_info");
 
             // Declare the camera position offset (In teh NED referece frame of the UAV):
             cam_x_offset_ = this->declare_parameter<double>("cam_x_offset", 0.0);
             cam_y_offset_ = this->declare_parameter<double>("cam_y_offset", 0.0);
-            cam_z_offset_ = -1*this->declare_parameter<double>("cam_z_offset", -0.1);
+            cam_z_offset_ = -1*this->declare_parameter<double>("cam_z_offset", -0.1); //PX4 has it in NED and Gz in ENU
             // Decalre teh roation of the camera from teh UAV NED refernce frame the declared parameters should be from the mono_cam
             // x500 model.sdf
             double cam_roll_gz  = this->declare_parameter<double>("cam_roll", 0.0);
@@ -55,21 +55,15 @@ class UavLandingNode : public rclcpp::Node {
             double cam_yaw_gz   = this->declare_parameter<double>("cam_yaw", 1.5707);
 
             // Get the real rotation in terms of teh UAV NED referene frame:
-            tf2::Quaternion q_nwu;
-            q_nwu.setRPY(cam_roll_gz, cam_pitch_gz, cam_yaw_gz);
-            // Define the rotation:
-            tf2::Quaternion q_rot_nwu_to_ned;
-            q_rot_nwu_to_ned.setRPY(M_PI, 0, 0);
+            tf2::Quaternion q_enu;
+            q_enu.setRPY(cam_roll_gz, cam_pitch_gz, cam_yaw_gz);
+            // Define the rotation to the NED:
+            tf2::Quaternion q_rot_enu_to_ned;
+            q_rot_enu_to_ned.setRPY(M_PI, 0, M_PI_2);
             // Get teh final rotation in teh NED frmae:
-            tf2::Quaternion q_ned = q_rot_nwu_to_ned * q_nwu;
-            tf2::Matrix3x3 rot_matrix_ned(q_ned);
-            // Obtain the rotation angles from teh global frame:
-            double cam_roll_, cam_pitch_, cam_yaw_;
-            rot_matrix_ned.getRPY(cam_roll_, cam_pitch_, cam_yaw_);
-
-            // Temperarlly define initial position of the UAV:
-            uav_pos_init_  = this->declare_parameter<std::string>("uav_init_pos", "-540,140,1.76,0,0,0");
-            parse_uav_init_pos(uav_pos_init_);
+            tf2::Quaternion q_ned = q_rot_enu_to_ned * q_enu;
+            // Initial rotation angles between the camare fromt eh global reference frame:
+            cam_rot_matrix_ned_.setRotation(q_ned);
 
             // Define the Subscription Nodes to the GPS of the UAV and the USV:
             // USV:
@@ -120,8 +114,6 @@ class UavLandingNode : public rclcpp::Node {
         std::string usv_gps_topic_;
         // UAV GPS topic:
         std::string uav_gps_topic_;
-        // USV intiial poisiton to use the wamv pose topic for hte moment:
-        std::string uav_pos_init_;
         // Topic that has the APiltag inforamtion:
         std::string uav_apriltag_info_topic_;
         // UAV local position:
@@ -129,20 +121,13 @@ class UavLandingNode : public rclcpp::Node {
         // UAV status:
         std::optional<px4_msgs::msg::VehicleStatus> vehicle_status_;
 
-        // Parsed initial position of the UAV:
-        float uav_init_x_{0.0f};
-        float uav_init_y_{0.0f};
-        float uav_init_z_{0.0f};
-
         // Camera offset from the UAV:
         // Posiiton
         float cam_x_offset_;
         float cam_y_offset_;
         float cam_z_offset_;
-        // Orientation:
-        float cam_roll_;
-        float cam_pitch_;
-        float cam_yaw_;
+        // Orientation matrix from the camera frame to the NED:
+        tf2::Matrix3x3 cam_rot_matrix_ned_;
 
         // Temporary position subscriber from the USV position:
         std::string usv_pose_topic_;
@@ -201,14 +186,18 @@ class UavLandingNode : public rclcpp::Node {
         // Current yaw angle of the USV
         float current_sp_yaw_{0.f};
         // Altitude where its going to start to hover:
-        float hover_high_m_{0.75f};
+        float hover_high_m_{0.6f};
         // Altitude where its going to end hovering before landing:
-        float hover_low_m_{0.5f};
+        float hover_low_m_{0.4f};
 
         // NUmber of iterations the timer hovers:
         // Maxmium altitude:
         int hover_ticks_{0};
+        // In the high hover position:
+        int high_hover_thicks_{0};
+        // IN the low hovering before landing:
         int low_hover_ticks_{0};
+
 
         // Define Initial condiitons for the UAV GPS:
         bool origin_set_{false};
@@ -256,24 +245,19 @@ class UavLandingNode : public rclcpp::Node {
 
 
 
-        // Temporally change the string initial posito of the UAV in numebrs:
-        void parse_uav_init_pos(const std::string &pos_str){
-            std::stringstream ss(pos_str);
-            std::string segment;
-            std::vector<float> values;
-            while (std::getline(ss, segment, ',')) {
-                values.push_back(std::stof(segment));
-            }
-            // Save the inital values:
-            if (values.size() >= 3) {
-                uav_init_x_ = values[0];
-                uav_init_y_ = values[1];
-                uav_init_z_ = values[2];
-                // Print to console to verify
-                RCLCPP_INFO(this->get_logger(), 
-                    "\033[1;32m[UAV Init] Parsed Initial Position -> X: %.2f, Y: %.2f, Z: %.2f\033[0m", 
-                    uav_init_x_, uav_init_y_, uav_init_z_);
-            }
+        // FUnction to change a positon vector from teh camera frame to the NED frame:
+        void get_tag_position_in_uav_frame( float tag_cam_x, float tag_cam_y, float tag_cam_z, 
+            float &uav_x, float &uav_y, float &uav_z){
+            // Remember in the camra frame the axis xyz -> zxy
+            tf2::Vector3 point_camera(tag_cam_z, -tag_cam_x, -tag_cam_y);
+
+            // Rotate the point using the stored NED matrix
+            tf2::Vector3 point_body_rotated = cam_rot_matrix_ned_ * point_camera;
+
+            // Add the Camera Position Offset in that are in the ENU frame
+            uav_x = point_body_rotated.x() + cam_y_offset_;
+            uav_y = point_body_rotated.y() + cam_x_offset_;
+            uav_z = point_body_rotated.z() + cam_z_offset_;
         }
 
 
@@ -481,21 +465,52 @@ class UavLandingNode : public rclcpp::Node {
 
                     // If it hovers for 3 secods change to the phase where it hovers at a lower altitude
                     if (last_apriltag_info_->apriltag_detected) {
-                        phase_ = Phase::DESCEND_LOW;
+                        high_hover_thicks_++;
+                        if (high_hover_thicks_ > 15) { 
+                            RCLCPP_INFO(this->get_logger(), ">>> SWITCHING PHASE: DESCEND_LOW <<<");
+                            phase_ = Phase::DESCEND_LOW;
+                            high_hover_thicks_ = 0; 
+                        }
+                    } else {
+                        high_hover_thicks_ = 0;
                     }
                     return;
                 }
                 
                 // Phase where it hovers at a lower altitude:
                 case Phase::DESCEND_LOW: {
-                    // SEnd the USV position with the Takeoff altitude:
-                    current_sp_x_ = current_sp_x_ + (alpha_ * (north_m - current_sp_x_));
-                    current_sp_y_ = current_sp_y_ + (alpha_ * (east_m - current_sp_y_));
-                    current_sp_z_ = -hover_low_m_;
+                    // SEnd the USV position obtianed from teh APrilTag:
+                    if (last_apriltag_info_->apriltag_detected) {
+                        // Get the realtive position of the APriltag:
+                        float uav_rel_x, uav_rel_y, uav_rel_z;
+                        get_tag_position_in_uav_frame( last_apriltag_info_->position.x, last_apriltag_info_->position.y, last_apriltag_info_->position.z, 
+                            uav_rel_x, uav_rel_y, uav_rel_z);
+                        
+                        //  Rotate respct tot eh UAV yaw:
+                        float uav_heading = uav_pose->heading;
+                        // Rotate teh vector respect to0t eh UAV yaw:
+                        float global_rel_n = uav_rel_x * cos(uav_heading) - uav_rel_y * sin(uav_heading);
+                        float global_rel_e = uav_rel_x * sin(uav_heading) + uav_rel_y * cos(uav_heading);
+                        // Update the Landing Setpoint:
+                        float target_x = uav_pose->x - global_rel_n;
+                        float target_y = uav_pose->y + global_rel_e;
+                        //Print them to see their effect:
+                        RCLCPP_INFO(this->get_logger(), "Target Calculated: X=%.3f (offset %.3f), Y=%.3f (offset %.3f),Z (offset %.3f)" , 
+                            target_x, global_rel_n, target_y, global_rel_e, uav_rel_z);
 
-                    // If it hovers at that lower altitude for 3 seconds start landing:
-                    if (++low_hover_ticks_ > 50) {
-                        phase_ = Phase::LAND;
+                        // Apply a smoothing to make the transition easier:
+                        current_sp_x_ = current_sp_x_ + ((target_x - current_sp_x_));
+                        current_sp_y_ = current_sp_y_ + ((target_y - current_sp_y_));
+                        current_sp_z_ = current_sp_z_ + 0.01;
+
+                        if (std::sqrt(global_rel_n*global_rel_n+global_rel_e*global_rel_e)<0.05 && std::abs(uav_rel_z)<0.4){
+                            RCLCPP_INFO(this->get_logger(), ">>> SWITCHING PHASE: LAND <<<");
+                            phase_ = Phase::LAND;
+                        }
+                    }
+                    else {
+                        RCLCPP_INFO(this->get_logger(), ">>> Change to  Track high<<<");
+                        phase_ = Phase::TRACK_USV_HIGH;
                     }
                     return;
                 }
