@@ -41,16 +41,14 @@ def launch(context, *args, **kwargs):
 
 
     # Create the main launch file
+    pkg_share = get_package_share_directory('robotx_bringup')
     main_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                os.getenv('AMENT_PREFIX_PATH').split(':')[0],  # or use get_package_share_directory(...)
-                'share', 'robotx_bringup', 'launch', 'main_usv_px4.launch.py'
-            )
+            os.path.join(pkg_share, 'launch', 'main_usv_px4.launch.py')
         ),
         launch_arguments={'world': world_name,
                           'px4_model': px4_model,
-                          'px4_model_pose':px4_model_pose,
+                          'px4_model_pose': px4_model_pose,
                           'urdf': urdf,
                           'sim_mode': sim_mode}.items(),
     )
@@ -73,8 +71,7 @@ def launch(context, *args, **kwargs):
     launch_process.append(apriltag_detect)
 
 
-    # Open RVIZ2 witht he configuration:
-    pkg_share = get_package_share_directory('robotx_bringup')
+    # Open RVIZ2 witht he configuration
     rviz_config_path = os.path.join(pkg_share, 'rviz', 'apriltag_detection.rviz')
     # RViz Node
     rviz_node = Node(
